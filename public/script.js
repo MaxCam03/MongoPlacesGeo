@@ -1,207 +1,165 @@
-// --- 1. Inicialización del Mapa ---
+// 1. INICIALIZAR MAPA
+const map = L.map('map').setView([21.1619, -101.6860], 12); // Coordenadas ejemplo (León)
 
-const initialCoords = [20.5937, -100.3929]; // Coordenadas de ejemplo (Guanajuato, MX)
-// Inicializa el mapa con un nivel de zoom más alto (12)
-const map = L.map('map').setView(initialCoords, 12); 
-
-// Cargar la capa de OpenStreetMap
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    attribution: 'OpenStreetMap'
 }).addTo(map);
 
-let markers = L.featureGroup().addTo(map); // Grupo para marcadores persistentes
-let tempMarker = null; // Variable para el marcador temporal de clic
+let markers = L.featureGroup().addTo(map); 
+let tempMarker = null; 
 
-// --- 2. Lógica de Interacción con el Mapa (Click) ---
+// 2. MANEJO DE CLIC EN EL MAPA (Rellena los campos editables)
+map.on('click', (e) => {
+    const { lat, lng } = e.latlng;
 
-function onMapClick(e) {
-    // 1. Eliminar el marcador temporal anterior si existe
-    if (tempMarker) {
-        map.removeLayer(tempMarker);
-    }
-    
-    // 2. Crear un nuevo marcador temporal 
-    tempMarker = L.marker(e.latlng).addTo(map);
-    
-    // 3. Obtener las coordenadas y formatearlas
-    const lat = e.latlng.lat.toFixed(6);
-    const lng = e.latlng.lng.toFixed(6);
-    
-    // 4. Llenar automáticamente el formulario (el campo se marcó como readonly en el HTML)
-    document.getElementById('latitude').value = lat;
-    document.getElementById('longitude').value = lng;
-    
-    // 5. Reiniciar formulario a modo "Crear"
-    document.getElementById('placeId').value = ''; 
-    document.getElementById('name').value = '';
-    document.getElementById('description').value = '';
-    document.getElementById('submitBtn').textContent = 'Guardar Lugar';
-    document.getElementById('cancelBtn').style.display = 'none';
+    if (tempMarker) map.removeLayer(tempMarker);
+    tempMarker = L.marker([lat, lng]).addTo(map);
 
-    document.getElementById('name').focus(); // Pone el foco para escribir el nombre
-}
+    // Llenar inputs (ahora el usuario puede corregirlos si quiere)
+    document.getElementById('latitude').value = lat.toFixed(6);
+    document.getElementById('longitude').value = lng.toFixed(6);
 
-// Asignar el listener de clic al mapa
-map.on('click', onMapClick);
+    resetFormStateForCreate(); // Limpia ID y resetea botones
+});
 
-// --- 3. Lógica del CRUD (API Calls) ---
-
+// 3. API CRUD
 async function loadPlaces() {
     try {
-        const response = await fetch('/api/places');
-        const places = await response.json();
-        
+        const res = await fetch('/api/places');
+        const places = await res.json();
         renderTable(places);
         renderMarkers(places);
     } catch (error) {
-        console.error('Error al cargar lugares:', error);
-        alert('No se pudieron cargar los lugares. Verifique que el servidor esté corriendo.');
+        console.error("Error cargando lugares:", error);
     }
 }
 
-async function savePlace(event) {
-    event.preventDefault();
+async function savePlace(e) {
+    e.preventDefault();
     
+    // Obtener valores (ya sea del clic o escritos manualmente)
     const id = document.getElementById('placeId').value;
     const name = document.getElementById('name').value;
     const description = document.getElementById('description').value;
-    const latitude = document.getElementById('latitude').value;
-    const longitude = document.getElementById('longitude').value;
-    
-    const method = id ? 'PATCH' : 'POST';
+    const lat = document.getElementById('latitude').value;
+    const lng = document.getElementById('longitude').value;
+
+    const data = { 
+        name, 
+        description, 
+        latitude: lat, 
+        longitude: lng 
+    };
+
     const url = id ? `/api/places/${id}` : '/api/places';
-    
-    const data = { name, description, latitude, longitude };
-    
+    const method = id ? 'PATCH' : 'POST';
+
     try {
-        const response = await fetch(url, {
+        const res = await fetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
 
-        if (response.ok) {
-            alert(id ? 'Lugar actualizado con éxito.' : 'Lugar creado con éxito.');
+        if (res.ok) {
             resetForm();
-            loadPlaces(); // Recargar la tabla y el mapa
+            loadPlaces(); 
         } else {
-            const errorData = await response.json();
-            alert(`Error al guardar el lugar: ${errorData.details || errorData.error}`);
+            const err = await res.json();
+            alert('Error al guardar: ' + (err.error || 'Desconocido'));
         }
     } catch (error) {
-        console.error('Error de red:', error);
-        alert('Hubo un error de conexión al servidor.');
+        console.error(error);
+        alert('Error de conexión');
     }
 }
 
 async function deletePlace(id) {
-    if (!confirm('¿Estás seguro de que quieres borrar este lugar? ¡Es permanente!')) {
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/api/places/${id}`, {
-            method: 'DELETE',
-        });
-
-        if (response.status === 204) {
-            alert('Lugar eliminado con éxito.');
-            loadPlaces(); // Recargar la tabla y el mapa
-        } else if (response.status === 404) {
-            alert('Error: Lugar no encontrado.');
-        } else {
-            alert('Error al eliminar el lugar.');
-        }
-    } catch (error) {
-        console.error('Error de red:', error);
-        alert('Hubo un error de conexión al servidor.');
-    }
+    if(!confirm('¿Borrar registro permanentemente?')) return;
+    await fetch(`/api/places/${id}`, { method: 'DELETE' });
+    loadPlaces();
 }
 
-// --- 4. Lógica del Frontend (Manipulación de DOM) ---
-
+// 4. UI RENDER
 function renderTable(places) {
     const tbody = document.querySelector('#placesTable tbody');
-    tbody.innerHTML = ''; 
+    tbody.innerHTML = '';
 
-    places.forEach(place => {
-        const row = document.createElement('tr');
-        
-        let coords = place.location.coordinates;
-        let [longitude, latitude] = coords;
+    places.forEach(p => {
+        const [lng, lat] = p.location.coordinates;
+        const date = new Date(p.updatedAt).toLocaleString(); 
 
-        row.innerHTML = `
-            <td>${place._id}</td>
-            <td>${place.name}</td>
-            <td>${latitude.toFixed(4)} / ${longitude.toFixed(4)}</td>
-            <td>${new Date(place.createdAt).toLocaleString()}</td>
-            <td>${new Date(place.updatedAt).toLocaleString()}</td>
-            <td>
-                <button onclick="editPlace('${place._id}', '${place.name}', '${place.description}', ${latitude}, ${longitude})">Editar</button>
-                <button onclick="deletePlace('${place._id}')">Borrar</button>
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${p.name}</strong><br><small>${p.description || ''}</small></td>
+            <td>${lat.toFixed(4)}, ${lng.toFixed(4)}</td>
+            <td>${date}</td>
+            <td class="text-end">
+                <button class="btn btn-sm btn-warning" onclick="editMode('${p._id}', '${p.name}', '${p.description}', ${lat}, ${lng})">✏️</button>
+                <button class="btn btn-sm btn-danger" onclick="deletePlace('${p._id}')">🗑️</button>
             </td>
         `;
-        tbody.appendChild(row);
+        tbody.appendChild(tr);
     });
 }
 
 function renderMarkers(places) {
-    markers.clearLayers(); 
-    
-    places.forEach(place => {
-        const [longitude, latitude] = place.location.coordinates;
-        
-        const marker = L.marker([latitude, longitude]); 
-        marker.bindPopup(`<b>${place.name}</b><br>${place.description || 'Sin descripción'}`);
-        markers.addLayer(marker);
+    markers.clearLayers();
+    if(tempMarker) map.removeLayer(tempMarker);
+
+    places.forEach(p => {
+        const [lng, lat] = p.location.coordinates;
+        L.marker([lat, lng])
+         .bindPopup(`<b>${p.name}</b><br>${p.description || ''}`)
+         .addTo(markers);
     });
-    
-    // Centrar el mapa si hay lugares
-    if (places.length > 0) {
-        map.fitBounds(markers.getBounds());
-    } else {
-         map.setView(initialCoords, 12); // Usar zoom inicial si está vacío
-    }
 }
 
-function editPlace(id, name, description, lat, lon) {
-    // 1. Rellenar el formulario
+// 5. MODOS DE FORMULARIO
+function editMode(id, name, desc, lat, lng) {
+    // 1. Llenar campos
     document.getElementById('placeId').value = id;
     document.getElementById('name').value = name;
-    document.getElementById('description').value = description === 'null' ? '' : description;
+    document.getElementById('description').value = desc === 'undefined' ? '' : desc;
     document.getElementById('latitude').value = lat;
-    document.getElementById('longitude').value = lon;
+    document.getElementById('longitude').value = lng;
+
+    // 2. Cambiar botones a modo Edición
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.textContent = 'Actualizar Datos';
+    submitBtn.classList.remove('btn-success');
+    submitBtn.classList.add('btn-warning');
     
-    // 2. Cambiar modo de formulario
-    document.getElementById('submitBtn').textContent = 'Actualizar Lugar';
-    document.getElementById('cancelBtn').style.display = 'inline';
+    document.getElementById('cancelBtn').style.display = 'inline-block';
     
-    // 3. Quitar marcador temporal si existe y centrar en el marcador a editar
-    if (tempMarker) {
-        map.removeLayer(tempMarker);
-        tempMarker = null;
-    }
-    map.setView([lat, lon], map.getZoom());
+    // 3. Centrar mapa en el lugar a editar
+    map.setView([lat, lng], 15);
+    window.scrollTo(0, 0); // Subir para ver formulario
 }
 
-function resetForm() {
-    // Quita el marcador temporal de clic
-    if (tempMarker) {
-        map.removeLayer(tempMarker);
-        tempMarker = null; 
-    }
-    
-    document.getElementById('placeForm').reset();
+function resetFormStateForCreate() {
     document.getElementById('placeId').value = '';
-    document.getElementById('submitBtn').textContent = 'Guardar Lugar';
+    document.getElementById('name').focus(); // Foco en nombre
+    
+    // Restaurar botones a modo Crear
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.textContent = 'Guardar Lugar';
+    submitBtn.classList.remove('btn-warning');
+    submitBtn.classList.add('btn-success');
+    
     document.getElementById('cancelBtn').style.display = 'none';
 }
 
-// --- 5. Event Listeners y Arranque ---
+function resetForm() {
+    document.getElementById('placeForm').reset();
+    if(tempMarker) map.removeLayer(tempMarker);
+    resetFormStateForCreate();
+}
 
+// Event Listeners
 document.getElementById('placeForm').addEventListener('submit', savePlace);
 document.getElementById('cancelBtn').addEventListener('click', resetForm);
 
-// Cargar datos al iniciar la aplicación
+// Inicio
 loadPlaces();

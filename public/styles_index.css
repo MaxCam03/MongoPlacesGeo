@@ -1,0 +1,26 @@
+body { 
+    background-color: #f0f2f5; 
+    font-family: 'Segoe UI', sans-serif; 
+}
+
+#map { 
+    height: 500px; 
+    width: 100%; 
+    border-radius: 8px;
+    border: 2px solid #dee2e6;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.card { 
+    border: none; 
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+    margin-bottom: 20px; 
+}
+
+.card-header { 
+    font-weight: bold; 
+}
+
+.table-hover tbody tr:hover { 
+    background-color: #e9ecef; 
+}

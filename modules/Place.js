@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-// Esquema para el tipo GeoJSON 'Point'
 const pointSchema = new mongoose.Schema({
   type: {
     type: String,
@@ -16,24 +15,22 @@ const pointSchema = new mongoose.Schema({
 const PlaceSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: [true, 'El nombre del lugar es obligatorio.'],
+    required: [true, 'El nombre es obligatorio'],
     trim: true
   },
   description: {
     type: String,
     trim: true
   },
-  // Campo de ubicación georreferenciada
   location: {
     type: pointSchema,
     required: true,
-    index: '2dsphere' // Índice crucial para consultas geoespaciales
-  },
+    index: '2dsphere' // Importante para mapas
+  }
 }, {
-  // Mongoose añade createdAt y updatedAt automáticamente (Auditoría)
+  // Esto crea automáticamente los campos 'createdAt' y 'updatedAt'
+  // Sirve para tu tabla de registro de cambios.
   timestamps: true 
 });
 
-const Place = mongoose.model('Place', PlaceSchema);
-
-module.exports = Place;
+module.exports = mongoose.model('Place', PlaceSchema);
