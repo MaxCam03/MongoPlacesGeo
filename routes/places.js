@@ -22,7 +22,7 @@ router.post('/', async (req, res) => {
       description,
       location: {
         type: 'Point',
-        coordinates: [parseFloat(longitude), parseFloat(latitude)] // OJO: MongoDB usa [Lon, Lat]
+        coordinates: [parseFloat(longitude), parseFloat(latitude)] // MongoDB usa [Lon, Lat]
       }
     });
 

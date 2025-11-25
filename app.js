@@ -4,7 +4,6 @@ const placesRouter = require('./routes/places');
 
 const app = express();
 
-// --- 1. CONFIGURACIONES ---
 app.use(express.json()); 
 app.use(express.static('public')); 
 
@@ -18,10 +17,8 @@ mongoose.connect(mongoUri)
       console.log('💡 REVISA: ¿Tu IP está permitida en "Network Access" en Atlas?');
   });
 
-// --- 3. RUTAS ---
 app.use('/api/places', placesRouter);
 
-// --- 4. INICIO DEL SERVIDOR ---
 const port = process.env.PORT || 4000;
 app.listen(port, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${port}`);
